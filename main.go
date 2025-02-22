@@ -2,50 +2,80 @@ package main
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
+	"os/user"
+	"path/filepath"
 	"strings"
 )
 
-func execInput(input string) error {
-	input = strings.TrimSuffix(input, "\n")
+type Config struct {
+	PromptColor string
+	HomeDir     string
+}
 
-	args := strings.Split(input, " ")
-
-	cmd := exec.Command(args[0], args[1:]...)
-
-	switch args[0] {
-	case "cd":
-		if len(args) < 2 {
-			return errors.New("Path Required")
-		}
-		return os.Chdir(args[1])
-	case "exit":
-		os.Exit(0)
+func loadConfig() Config {
+	usr, err := user.Current()
+	if err != nil {
+		fmt.Println("Error getting current user:", err)
+		return Config{}
 	}
 
-	cmd.Stderr = os.Stderr
-	cmd.Stdout = os.Stdout
+	configPath := filepath.Join(usr.HomeDir, ".gorc")
+	file, err := os.Open(configPath)
+	if err != nil {
+		// If the file doesn't exist, return default values
+		return Config{PromptColor: "\033[32m", HomeDir: usr.HomeDir} // Default green prompt
+	}
+	defer file.Close()
 
-	return cmd.Run()
+	config := Config{PromptColor: "\033[32m", HomeDir: usr.HomeDir} // Default values
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		key, value := strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
+		switch key {
+		case "prompt_color":
+			config.PromptColor = value
+		case "home_dir":
+			config.HomeDir = value
+		}
+	}
+
+	return config
 }
 
 func main() {
-	reader := bufio.NewReader(os.Stdin)
+	config := loadConfig()
+	os.Chdir(config.HomeDir)
 
+	scanner := bufio.NewScanner(os.Stdin)
 	for {
-		fmt.Print(">> ")
-		// get user input
-		input, err := reader.ReadString('\n')
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
+		fmt.Printf("%s$ \033[0m", config.PromptColor)
+		scanner.Scan()
+		input := scanner.Text()
+
+		if input == "exit" {
+			break
 		}
 
-		if err := execInput(input); err != nil {
-			fmt.Fprintln(os.Stderr, err)
+		args := strings.Fields(input)
+		if len(args) == 0 {
+			continue
+		}
+
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Stdin = os.Stdin
+
+		if err := cmd.Run(); err != nil {
+			fmt.Println("Error:", err)
 		}
 	}
-
 }
