@@ -25,12 +25,11 @@ func loadConfig() Config {
 	configPath := filepath.Join(usr.HomeDir, ".gorc")
 	file, err := os.Open(configPath)
 	if err != nil {
-		// If the file doesn't exist, return default values
-		return Config{PromptColor: "\033[32m", HomeDir: usr.HomeDir} // Default green prompt
+		return Config{PromptColor: "\033[32m", HomeDir: usr.HomeDir}
 	}
 	defer file.Close()
 
-	config := Config{PromptColor: "\033[32m", HomeDir: usr.HomeDir} // Default values
+	config := Config{PromptColor: "\033[32m", HomeDir: usr.HomeDir}
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
